@@ -14,75 +14,48 @@
 (LOOP)
 @24576
 D=M
-@STARTBLACKOUT
-D; JGT
 
-// WHITE OUT SCREEN
+// SET COLOR(16) BLACK
+@18
+M=-1
+
+@DRAW
+D; JGT  // キーが押されていないなら色を白にする処理を跳ばす
+
+// SET COLOR(16) WHITE
+@18
+M=0
+
+(DRAW)
 @16384
 D=A
 @17
 M=D
 
-@8192
+@8192  // 繰り返しのカウンタの用意
 D=A
 @I
 M=D
-(WHITEOUTLOOP)
-@I
+
+(DRAWLOOP)
+@I  // ループのカウント
 M=M-1
-@17
+@18  // 塗りつぶす色をセット
+D=M
+@17  // 線を描画
 A=M
-M=0  // DRAW WHITE LINE
+M=D
+
 @I
 D=M
-
-@LOOP  // END WHITEOUT
+@LOOP  // 描画終了
 D;JEQ
 
-// SET NEXT POSITION
-@17
+@17  // 次に描画する位置をセット
 D=M
 @1
 D=D+A
 @17 
 M=D
-@WHITEOUTLOOP
+@DRAWLOOP
 0;JMP
-
-
-// BLACK OUT SCREEN
-(STARTBLACKOUT)
-@16384
-D=A
-@17
-M=D
-
-@8192
-D=A
-@I
-M=D
-(BLACKOUTLOOP)
-@I
-M=M-1
-@17
-A=M
-M=-1  // DRAW BLACK LINE
-@I
-D=M
-
-@LOOP  // END BLACKOUT
-D;JEQ
-
-// SET NEXT POSITION
-@17
-D=M
-@1
-D=D+A
-@17
-M=D
-@BLACKOUTLOOP
-0;JMP
-
-
-
-
