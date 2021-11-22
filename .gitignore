@@ -1,6 +1,7 @@
 /nand2tetris/
 .vscode/
 target/
+/scribble/
 
 *.txt
 *.asm
