@@ -1,5 +1,6 @@
 use std::any::type_name;
 use std::cmp;
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
@@ -68,11 +69,7 @@ enum CommandType {
 impl Parser {
     pub fn new(args: &[String]) -> Result<Parser, &'static str> {
         let filename = parse_filename(args);
-        let filename = match filename {
-            Ok(file) => file,
-            Err(e) => return Err(e),
-        };
-
+        let filename = filename?;
         let f = match File::open(filename) {
             Ok(f) => f,
             Err(_) => return Err("cannot open file"),
@@ -224,11 +221,38 @@ impl Parser {
             _ => return None,
         };
 
-        let left: usize = match code.find(";") {
-            None => return None,
-            Some(num) => num,
-        };
+        let left: usize = code.find(";")?;
 
         Some(&self.code[self.position][left..])
+    }
+}
+
+struct SymbolTable {
+    table: HashMap<String, usize>,
+    address: usize,
+}
+
+impl SymbolTable {
+    pub fn new() -> SymbolTable {
+        SymbolTable {
+            table: HashMap::new(),
+            address: 1024,
+        }
+    }
+
+    fn addEntry(&mut self, symbol: &String, address: usize) {
+        self.table.insert(symbol.clone(), self.address);
+        self.address += 1;
+    }
+
+    fn contains(&self, symbol: &str) -> bool {
+        match self.table.get(symbol) {
+            None => false,
+            _ => true,
+        }
+    }
+
+    fn getAddress(&self, symbol: &str) -> Option<&usize> {
+        self.table.get(symbol)
     }
 }
