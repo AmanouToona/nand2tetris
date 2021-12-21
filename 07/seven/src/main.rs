@@ -1,9 +1,12 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::io::BufWriter;
+
+static GENERIC_0: &'static str = "13";
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -14,6 +17,8 @@ fn main() {
     let mut writer = CodeWriter::new(&output_file).unwrap();
 
     while parser.has_more_commands() {
+        let command: &String = parser.get_command();
+        writer.write_simple(&format!("// {}\n", command));
         match parser.command_type() {
             CommandType::CPOP => writer.write_pushpop("pop", parser.arg1(), parser.arg2()),
             CommandType::CPUSH => writer.write_pushpop("push", parser.arg1(), parser.arg2()),
@@ -89,6 +94,10 @@ impl Parser {
             panic!("advance is called though no more command !!")
         }
         self.command_pos += 1;
+    }
+
+    pub fn get_command(&self) -> &String {
+        &self.commands[self.command_pos]
     }
 
     pub fn command_type(&self) -> CommandType {
@@ -187,6 +196,10 @@ impl CodeWriter {
         })
     }
 
+    pub fn write_simple(&mut self, command: &String) {
+        self.output_file.write(command.as_bytes()).unwrap();
+    }
+
     pub fn write_arithmetic(&mut self, command: &str) {
         match command {
             "add" => self.arithmetic_add(),
@@ -213,34 +226,88 @@ impl CodeWriter {
     fn push(&mut self, segment: &str, index: &str) {
         let data_position = {
             if segment == "constant" {
-                "D=A"
+                format!(
+                    "@{}\
+                    \nD=A",
+                    index
+                )
+            } else if segment == "temp" {
+                format!(
+                    "@{}\
+                    \nD=M",
+                    5 + index.parse::<i32>().unwrap()
+                )
             } else {
-                "D=M"
+                let segment = match segment {
+                    "local" => 1,
+                    "argument" => 2,
+                    "this" => 3,
+                    "that" => 4,
+                    "temp" => 5,
+                    _ => panic!("segment not match "),
+                };
+                format!(
+                    "@{}\
+                    \nD=M\
+                    \n@{}\
+                    \nD=D+A\
+                    \nA=D\
+                    \nD=M",
+                    segment, index
+                )
             }
         };
 
         let assembly_code = format!(
-            "@{}
-{}
-@SP
-A=M
-M=D
-@SP
-M=M+1\n\n",
-            index, data_position
+            "{}\
+            \n@SP\
+            \nA=M\
+            \nM=D\
+            \n@SP\
+            \nM=M+1\n\n",
+            data_position
         );
         self.output_file.write(assembly_code.as_bytes()).unwrap();
     }
 
     fn pop(&mut self, segment: &str, index: &str) {
+        if segment == "temp" {
+            let assembly_code = format!(
+                "@SP\
+                \nM=M-1\
+                \nA=M\
+                \nD=M\
+                \n@{}\
+                \nM=D\n\n",
+                index.parse::<i32>().unwrap() + 5
+            );
+            self.output_file.write(assembly_code.as_bytes()).unwrap();
+            return;
+        }
+
+        let segment = match segment {
+            "local" => 1,
+            "argument" => 2,
+            "this" => 3,
+            "that" => 4,
+            _ => panic!("segment not match "),
+        };
+
         let assembly_code = format!(
-            "@SP
-M=M-1
-A=M
-D=M
-@{}.{}
-M=D\n\n",
-            segment, index
+            "@{0}\
+            \nD=M\
+            \n@{1}\
+            \nD=D+A\
+            \n@{2}\
+            \nM=D\
+            \n@SP\
+            \nM=M-1\
+            \nA=M\
+            \nD=M\
+            \n@{2}\
+            \nA=M\
+            \nM=D\n\n",
+            segment, index, GENERIC_0
         );
         self.output_file.write(assembly_code.as_bytes()).unwrap();
     }
@@ -292,16 +359,16 @@ M=D\n\n",
 
     fn binary_function(&self, function: &str) -> String {
         format!(
-            "@SP
-M=M-1
-A=M
-D=M
-@SP
-M=M-1
-A=M
-M={}
-@SP
-M=M+1\n\n",
+            "@SP\
+            \nM=M-1\
+            \nA=M\
+            \nD=M\
+            \n@SP\
+            \nM=M-1\
+            \nA=M\
+            \nM={}\
+            \n@SP\
+            \nM=M+1\n\n",
             function
         )
     }
@@ -310,39 +377,39 @@ M=M+1\n\n",
         let jmp: String = function.to_ascii_uppercase();
         self.jmp_point += 1;
         format!(
-            "@SP
-M=M-1
-A=M
-D=M
-@SP
-M=M-1
-A=M
-D=M-D
-@jump_point{}
-D;J{}
-D=0
-@jump_endpoint{}
-0;JEQ
-(jump_point{})
-D=-1
-(jump_endpoint{})
-@SP
-A=M
-M=D
-@SP
-M=M+1\n\n",
+            "@SP\
+            \nM=M-1\
+            \nA=M\
+            \nD=M\
+            \n@SP\
+            \nM=M-1\
+            \nA=M\
+            \nD=M-D\
+            \n@jump_point{}\
+            \nD;J{}\
+            \nD=0\
+            \n@jump_endpoint{}\
+            \n0;JEQ\
+            \n(jump_point{})\
+            \nD=-1\
+            \n(jump_endpoint{})\
+            \n@SP\
+            \nA=M\
+            \nM=D\
+            \n@SP\
+            \nM=M+1\n\n",
             self.jmp_point, jmp, self.jmp_point, self.jmp_point, self.jmp_point
         )
     }
 
     fn unary_function(&self, function: &str) -> String {
         format!(
-            "@SP
-M=M-1
-A=M
-M={}
-@SP
-M=M+1\n\n",
+            "@SP\
+            \nM=M-1\
+            \nA=M\
+            \nM={}\
+            \n@SP\
+            \nM=M+1\n\n",
             function
         )
     }
