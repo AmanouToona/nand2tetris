@@ -237,6 +237,12 @@ impl CodeWriter {
                     \nD=M",
                     5 + index.parse::<i32>().unwrap()
                 )
+            } else if segment == "pointer" {
+                format!(
+                    "@{}\
+                    \nD=M",
+                    3 + index.parse::<i32>().unwrap()
+                )
             } else {
                 let segment = match segment {
                     "local" => 1,
@@ -280,6 +286,20 @@ impl CodeWriter {
                 \n@{}\
                 \nM=D\n\n",
                 index.parse::<i32>().unwrap() + 5
+            );
+            self.output_file.write(assembly_code.as_bytes()).unwrap();
+            return;
+        }
+
+        if segment == "pointer" {
+            let assembly_code = format!(
+                "@SP\
+                \nM=M-1\
+                \nA=M\
+                \nD=M\
+                \n@{}\
+                \nM=D\n\n",
+                index.parse::<i32>().unwrap() + 3
             );
             self.output_file.write(assembly_code.as_bytes()).unwrap();
             return;
