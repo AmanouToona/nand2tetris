@@ -4,6 +4,7 @@ use std::io;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::io::BufWriter;
+use std::path::Path;
 
 static GENERIC_0: &'static str = "13";
 
@@ -12,7 +13,9 @@ fn main() {
     let filename = parse_filename(&args).unwrap();
     let mut parser = Parser::new(&filename).unwrap();
 
-    let output_file = format!("{}.asm", filename);
+    let output_file = Path::new(&filename).file_stem().unwrap().to_str().unwrap();
+    let output_file = format!("{}.asm", output_file);
+
     let mut writer = CodeWriter::new(&output_file).unwrap();
 
     while parser.has_more_commands() {
