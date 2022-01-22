@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io;
@@ -243,6 +242,12 @@ impl CodeWriter {
                     \nD=M",
                     3 + index.parse::<i32>().unwrap()
                 )
+            } else if segment == "static" {
+                format!(
+                    "@{}\
+                    \nD=M",
+                    index.parse::<i32>().unwrap() + 16
+                )
             } else {
                 let segment = match segment {
                     "local" => 1,
@@ -300,6 +305,20 @@ impl CodeWriter {
                 \n@{}\
                 \nM=D\n\n",
                 index.parse::<i32>().unwrap() + 3
+            );
+            self.output_file.write(assembly_code.as_bytes()).unwrap();
+            return;
+        }
+
+        if segment == "static" {
+            let assembly_code = format!(
+                "@SP\
+                \nM=M-1\
+                \nA=M\
+                \nD=M\
+                \n@{}\
+                \nM=D\n\n",
+                index.parse::<i32>().unwrap() + 16
             );
             self.output_file.write(assembly_code.as_bytes()).unwrap();
             return;
