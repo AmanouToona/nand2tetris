@@ -18,7 +18,7 @@ fn main() {
 
     while parser.has_more_commands() {
         let command: &String = parser.get_command();
-        writer.write_simple(&format!("// {}\n", command));
+        writer.write_down(&format!("// {}\n", command));
         match parser.command_type() {
             CommandType::CPOP => writer.write_pushpop("pop", parser.arg1(), parser.arg2()),
             CommandType::CPUSH => writer.write_pushpop("push", parser.arg1(), parser.arg2()),
@@ -176,6 +176,7 @@ enum CommandType {
 struct CodeWriter {
     output_file: BufWriter<File>,
     jmp_point: i64,
+    return_num: i64,
 }
 
 impl CodeWriter {
@@ -184,10 +185,11 @@ impl CodeWriter {
         Ok(CodeWriter {
             output_file: writer,
             jmp_point: 0,
+            return_num: 0,
         })
     }
 
-    pub fn write_simple(&mut self, command: &String) {
+    pub fn write_down(&mut self, command: &str) {
         self.output_file.write(command.as_bytes()).unwrap();
     }
 
@@ -212,6 +214,23 @@ impl CodeWriter {
             "pop" => self.pop(segment, index),
             _ => panic!("{} is not push pop command !!", command),
         }
+    }
+
+    fn write_push_from_d_register(&mut self) {
+        let assembly_code = "@SP\
+                            \nA=M\
+                            \nM=D\
+                            \n@SP\
+                            \nM=M+1\n";
+        self.write_down(assembly_code);
+    }
+
+    fn write_pop_to_d_register(&mut self) {
+        let assembly_code = "@SP\
+                            \nM=M-1\
+                            \nA=M\
+                            \nD=M\n";
+        self.write_down(assembly_code);
     }
 
     fn push(&mut self, segment: &str, index: &str) {
@@ -270,7 +289,7 @@ impl CodeWriter {
             \nM=M+1\n\n",
             data_position
         );
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code);
     }
 
     fn pop(&mut self, segment: &str, index: &str) {
@@ -284,7 +303,7 @@ impl CodeWriter {
                 \nM=D\n\n",
                 index.parse::<i32>().unwrap() + 5
             );
-            self.output_file.write(assembly_code.as_bytes()).unwrap();
+            self.write_down(&assembly_code);
             return;
         }
 
@@ -298,7 +317,7 @@ impl CodeWriter {
                 \nM=D\n\n",
                 index.parse::<i32>().unwrap() + 3
             );
-            self.output_file.write(assembly_code.as_bytes()).unwrap();
+            self.write_down(&assembly_code);
             return;
         }
 
@@ -312,7 +331,7 @@ impl CodeWriter {
                 \nM=D\n\n",
                 index.parse::<i32>().unwrap() + 16
             );
-            self.output_file.write(assembly_code.as_bytes()).unwrap();
+            self.write_down(&assembly_code);
             return;
         }
 
@@ -340,90 +359,230 @@ impl CodeWriter {
             \nM=D\n\n",
             segment, index, GENERIC_0
         );
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code);
     }
 
     fn arithmetic_add(&mut self) {
         let assembly_code = self.binary_function("M+D");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_sub(&mut self) {
         let assembly_code = self.binary_function("M-D");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_neg(&mut self) {
         let assembly_code = self.unary_function("-M");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_eq(&mut self) {
         let assembly_code = self.compare_function("eq");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_gt(&mut self) {
         let assembly_code = self.compare_function("gt");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_lt(&mut self) {
         let assembly_code = self.compare_function("lt");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_and(&mut self) {
         let assembly_code = self.binary_function("M&D");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_or(&mut self) {
         let assembly_code = self.binary_function("M|D");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     fn arithmetic_not(&mut self) {
         let assembly_code = self.unary_function("!M");
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     pub fn write_init() {}
 
     pub fn write_label(&mut self, label: &str) {
-        let assembly_code = format!("({})", label);
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        let assembly_code = format!("({})\n\n", label);
+        self.write_down(&assembly_code)
     }
 
     pub fn write_goto(&mut self, label: &str) {
         let assembly_code = format!(
             "@{}\
-            \n0;JMP",
+            \n0;JMP\
+            \n\n",
             label
         );
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     pub fn write_if(&mut self, label: &str) {
+        self.write_pop_to_d_register();
         let assembly_code = format!(
-            "@SP\
-            \nM=M-1\
-            \nA=M\
-            \nD=M\
-            @{}
-            D;JNE",
+            "@{}
+            \nD;JNE\
+            \n\n",
             label
         );
-        self.output_file.write(assembly_code.as_bytes()).unwrap();
+        self.write_down(&assembly_code)
     }
 
     pub fn write_call(&mut self, functionname: &str, numargs: &str) {
-        let numargs = numargs.parse::<i32>().unwrap();
+        // push return-address
+        let return_label = format!("{}_{}", functionname, self.return_num);
+        self.return_num += 1;
+        let assembly_code = format!(
+            "@{}\
+            \nD=A\n",
+            return_label
+        );
+        self.write_down(&assembly_code);
+        // push LCL
+        let assembly_code = "
+            @LCL\
+            \nD=M\n";
+        self.write_down(assembly_code);
+        self.write_push_from_d_register();
+        // push ARG
+        let assembly_code = "
+            @ARG\
+            \nD=M\n";
+        self.write_down(assembly_code);
+        self.write_push_from_d_register();
+        // push THIS
+        let assembly_code = "
+            @THIS\
+            \nD=M\n";
+        self.write_down(assembly_code);
+        self.write_push_from_d_register();
+        // push THAT
+        let assembly_code = "
+            @THAT\
+            \nD=M\n";
+        self.write_down(assembly_code);
+        self.write_push_from_d_register();
+        // ARG = SP - n - 5
+        let assembly_code = format!(
+            "@SP\
+            \nD=M\
+            \n@5\
+            \nD=D-A\
+            \n@{}\
+            \nD=D-A\
+            \n@ARG\
+            \nM=D\n",
+            numargs
+        );
+        self.write_down(&assembly_code);
+        // LCL = SP
+        let assembly_code = "
+            @SP\
+            \nD=M\
+            \n@LCL\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // goto f
+        let assembly_code = format!(
+            "@{}\
+            \n0;JMP\n",
+            functionname
+        );
+        self.write_down(&assembly_code);
+        // (return - address)
+        let assembly_code = format!("({})\n\n", return_label);
+        self.write_down(&assembly_code);
     }
 
-    pub fn write_return() {}
+    pub fn write_return(&mut self) {
+        // FRAME = LCL
+        let assembly_code = "
+            @LCL\
+            \nD=M\
+            \n@R13\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // RET = *(FRAME - 5)
+        let assembly_code = "
+            @5\
+            \nD=A\
+            \n@13\
+            \nA=M-D\
+            \nD=M\
+            \n@14\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // *ARG = pop(), SP = ARG + 1
+        self.write_pop_to_d_register();
+        let assembly_code = "
+            @ARG\
+            \nA=M\
+            \nM=D\
+            \n@ARG\
+            \nD=M+1
+            \n@SP\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // THAT = *(FRAME - 1)
+        let assembly_code = "
+            @R13\
+            \nM=M-1\
+            \nD=M\
+            \n@THAT\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // THIS = * (FRAME - 2)
+        let assembly_code = "
+            @13\
+            \nM=M-1\
+            \nD=M\
+            \n@THIS\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // ARG = * (FRAME - 3)
+        let assembly_code = "
+            @13\
+            \nM=M-1;
+            \nD=M\
+            \n@ARG\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // LCL = * (FRAME - 4)
+        let assembly_code = "
+            @13\
+            \nM=M-1\
+            \nD=M\
+            \n@LCL\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        // goto RET
+        let assembly_code = "
+            @14\
+            \nA=M\
+            \n0;JMP\n\n";
+        self.write_down(assembly_code);
+    }
 
-    pub fn write_function() {}
+    pub fn write_function(&mut self, function: &str, num_of_locals: &str) {
+        // (f)
+        let assembly = format!("({})\n", function);
+        self.write_down(&assembly);
+        // repeat k times: push0
+        let assembly = "D=0\n";
+        self.write_down(assembly);
+        for _ in 0..num_of_locals.parse::<i32>().unwrap() {
+            self.write_push_from_d_register();
+        }
+        let assembly = "\n\n";
+        self.write_down(assembly);
+    }
 
     fn binary_function(&self, function: &str) -> String {
         format!(
