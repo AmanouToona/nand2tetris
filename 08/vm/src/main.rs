@@ -1,5 +1,4 @@
 use std::env;
-use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -27,7 +26,12 @@ fn main() {
         .read_dir()
         .unwrap()
         .map(|x| x.unwrap().path())
+        .filter(|x| x.extension().unwrap() == "vm")
         .collect::<Vec<PathBuf>>();
+
+    for file in &files {
+        print!("{:?}\n", file);
+    }
 
     if files.len() > 1 {
         writer.write_init();
@@ -431,7 +435,7 @@ impl CodeWriter {
     }
 
     pub fn write_init(&mut self) {
-        let assembly_code = "
+        let assembly_code = "\
             @256\
             \nD=A\
             \n@SP\
@@ -477,25 +481,25 @@ impl CodeWriter {
         );
         self.write_down(&assembly_code);
         // push LCL
-        let assembly_code = "
+        let assembly_code = "\
             @LCL\
             \nD=M\n";
         self.write_down(assembly_code);
         self.write_push_from_d_register();
         // push ARG
-        let assembly_code = "
+        let assembly_code = "\
             @ARG\
             \nD=M\n";
         self.write_down(assembly_code);
         self.write_push_from_d_register();
         // push THIS
-        let assembly_code = "
+        let assembly_code = "\
             @THIS\
             \nD=M\n";
         self.write_down(assembly_code);
         self.write_push_from_d_register();
         // push THAT
-        let assembly_code = "
+        let assembly_code = "\
             @THAT\
             \nD=M\n";
         self.write_down(assembly_code);
@@ -514,7 +518,7 @@ impl CodeWriter {
         );
         self.write_down(&assembly_code);
         // LCL = SP
-        let assembly_code = "
+        let assembly_code = "\
             @SP\
             \nD=M\
             \n@LCL\
@@ -534,14 +538,14 @@ impl CodeWriter {
 
     pub fn write_return(&mut self) {
         // FRAME = LCL
-        let assembly_code = "
+        let assembly_code = "\
             @LCL\
             \nD=M\
             \n@R13\
             \nM=D\n";
         self.write_down(assembly_code);
         // RET = *(FRAME - 5)
-        let assembly_code = "
+        let assembly_code = "\
             @5\
             \nD=A\
             \n@13\
@@ -552,7 +556,7 @@ impl CodeWriter {
         self.write_down(assembly_code);
         // *ARG = pop(), SP = ARG + 1
         self.write_pop_to_d_register();
-        let assembly_code = "
+        let assembly_code = "\
             @ARG\
             \nA=M\
             \nM=D\
@@ -562,39 +566,43 @@ impl CodeWriter {
             \nM=D\n";
         self.write_down(assembly_code);
         // THAT = *(FRAME - 1)
-        let assembly_code = "
+        let assembly_code = "\
             @R13\
             \nM=M-1\
+            \nA=M\
             \nD=M\
             \n@THAT\
             \nM=D\n";
         self.write_down(assembly_code);
         // THIS = * (FRAME - 2)
-        let assembly_code = "
+        let assembly_code = "\
             @13\
             \nM=M-1\
+            \nA=M\
             \nD=M\
             \n@THIS\
             \nM=D\n";
         self.write_down(assembly_code);
         // ARG = * (FRAME - 3)
-        let assembly_code = "
+        let assembly_code = "\
             @13\
             \nM=M-1;
+            \nA=M\
             \nD=M\
             \n@ARG\
             \nM=D\n";
         self.write_down(assembly_code);
         // LCL = * (FRAME - 4)
-        let assembly_code = "
+        let assembly_code = "\
             @13\
             \nM=M-1\
+            \nA=M\
             \nD=M\
             \n@LCL\
             \nM=D\n";
         self.write_down(assembly_code);
         // goto RET
-        let assembly_code = "
+        let assembly_code = "\
             @14\
             \nA=M\
             \n0;JMP\n\n";
@@ -611,7 +619,7 @@ impl CodeWriter {
         for _ in 0..num_of_locals.parse::<i32>().unwrap() {
             self.write_push_from_d_register();
         }
-        let assembly = "\n\n";
+        let assembly = "\n";
         self.write_down(assembly);
     }
 
