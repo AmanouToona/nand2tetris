@@ -1,38 +1,61 @@
 use std::env;
+use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::io::BufWriter;
 use std::path::Path;
+use std::path::PathBuf;
 
 static GENERIC_0: &'static str = "13";
 
+fn print_type<T>(_: &T) {
+    println!("{}", std::any::type_name::<T>())
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let input_filename = get_filename_from_arg(&args).unwrap();
-    let output_file = get_output_filename(&input_filename);
+    let input_path = get_input_path(&args).unwrap();
+    let output_file = get_output_filename(&input_path);
 
-    let mut parser = Parser::new(&input_filename).unwrap();
     let mut writer = CodeWriter::new(&output_file).unwrap();
 
-    while parser.has_more_commands() {
-        let command: &String = parser.get_command();
-        writer.write_down(&format!("// {}\n", command));
-        match parser.command_type() {
-            CommandType::CPOP => writer.write_pushpop("pop", parser.arg1(), parser.arg2()),
-            CommandType::CPUSH => writer.write_pushpop("push", parser.arg1(), parser.arg2()),
-            CommandType::CARITHMETIC => writer.write_arithmetic(parser.arg1()),
-            CommandType::CLABEL => writer.write_label(parser.arg1()),
-            CommandType::CGOTO => writer.write_goto(parser.arg1()),
-            CommandType::CIF => writer.write_if(parser.arg1()),
-            _ => continue,
-        };
-        parser.advance();
+    let input_path = Path::new(&input_path);
+
+    let files = input_path
+        .read_dir()
+        .unwrap()
+        .map(|x| x.unwrap().path())
+        .collect::<Vec<PathBuf>>();
+
+    if files.len() > 1 {
+        writer.write_init();
+    }
+
+    for file in files {
+        let mut parser = Parser::new(&file).unwrap();
+
+        while parser.has_more_commands() {
+            let command: &String = parser.get_command();
+            writer.write_down(&format!("// {}\n", command));
+            match parser.command_type() {
+                CommandType::CPOP => writer.write_pushpop("pop", parser.arg1(), parser.arg2()),
+                CommandType::CPUSH => writer.write_pushpop("push", parser.arg1(), parser.arg2()),
+                CommandType::CARITHMETIC => writer.write_arithmetic(parser.arg1()),
+                CommandType::CLABEL => writer.write_label(parser.arg1()),
+                CommandType::CGOTO => writer.write_goto(parser.arg1()),
+                CommandType::CIF => writer.write_if(parser.arg1()),
+                CommandType::CFUNCTION => writer.write_function(parser.arg1(), parser.arg2()),
+                CommandType::CCALL => writer.write_call(parser.arg1(), parser.arg2()),
+                CommandType::CRETURN => writer.write_return(),
+            };
+            parser.advance();
+        }
     }
 }
 
-fn get_filename_from_arg(args: &[String]) -> Result<String, &str> {
+fn get_input_path(args: &[String]) -> Result<String, &str> {
     if args.len() < 2 {
         return Err("not enought argument");
     }
@@ -52,11 +75,11 @@ struct Parser {
 }
 
 impl Parser {
-    pub fn new(filename: &str) -> Result<Parser, &str> {
+    pub fn new(filename: &PathBuf) -> Result<Parser, &str> {
         let f = match File::open(filename) {
             Ok(f) => f,
             Err(_) => {
-                println!("{}", filename);
+                println!("{}", filename.to_str().unwrap());
                 return Err("cannot open file !!");
             }
         };
@@ -407,7 +430,15 @@ impl CodeWriter {
         self.write_down(&assembly_code)
     }
 
-    pub fn write_init() {}
+    pub fn write_init(&mut self) {
+        let assembly_code = "
+            @256\
+            \nD=A\
+            \n@SP\
+            \nM=D\n";
+        self.write_down(assembly_code);
+        self.write_call("Sys.init", "0");
+    }
 
     pub fn write_label(&mut self, label: &str) {
         let assembly_code = format!("({})\n\n", label);
