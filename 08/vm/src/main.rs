@@ -480,6 +480,7 @@ impl CodeWriter {
             return_label
         );
         self.write_down(&assembly_code);
+        self.write_push_from_d_register();
         // push LCL
         let assembly_code = "\
             @LCL\
