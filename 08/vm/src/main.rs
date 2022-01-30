@@ -56,6 +56,7 @@ fn main() {
             };
             parser.advance();
         }
+        writer.file_countup();
     }
 }
 
@@ -204,6 +205,7 @@ struct CodeWriter {
     output_file: BufWriter<File>,
     jmp_point: i64,
     return_num: i64,
+    file_count: i32,
 }
 
 impl CodeWriter {
@@ -213,7 +215,12 @@ impl CodeWriter {
             output_file: writer,
             jmp_point: 0,
             return_num: 0,
+            file_count: 0,
         })
+    }
+
+    pub fn file_countup(&mut self) {
+        self.file_count += 1;
     }
 
     pub fn write_down(&mut self, command: &str) {
@@ -282,9 +289,9 @@ impl CodeWriter {
                 )
             } else if segment == "static" {
                 format!(
-                    "@{}\
+                    "@{}_{}\
                     \nD=M",
-                    index.parse::<i32>().unwrap() + 16
+                    self.file_count, index
                 )
             } else {
                 let segment = match segment {
@@ -354,9 +361,9 @@ impl CodeWriter {
                 \nM=M-1\
                 \nA=M\
                 \nD=M\
-                \n@{}\
+                \n@{}_{}\
                 \nM=D\n\n",
-                index.parse::<i32>().unwrap() + 16
+                self.file_count, index
             );
             self.write_down(&assembly_code);
             return;
